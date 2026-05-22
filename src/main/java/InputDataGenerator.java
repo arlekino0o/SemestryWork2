@@ -4,11 +4,13 @@ import java.util.*;
 public class InputDataGenerator {
     public static void main(String[] args) throws IOException {
         int[] sizes = {
-                100, 500, 1000, 2000, 5000,
-                10000, 20000, 50000, 100000
+                100, 180, 260, 400, 550,
+                800, 1200, 1700, 2500, 3800,
+                5200, 7600, 11000, 16000, 23000,
+                32000, 45000, 63000, 82000, 100000
         };
 
-        int filesPerSize = 10;
+        int filesPerSize = 30;
 
         File randomDir = new File("data/random");
         File sortedDir = new File("data/sorted");

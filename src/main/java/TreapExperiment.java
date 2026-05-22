@@ -3,11 +3,31 @@ import java.nio.file.*;
 import java.util.*;
 
 public class TreapExperiment {
+    private static class Stats {
+        private double totalTimeMs;
+        private long totalSteps;
+        private int runs;
+
+        void add(double timeMs, long steps) {
+            totalTimeMs += timeMs;
+            totalSteps += steps;
+            runs++;
+        }
+
+        double getAverageTimeMs() {
+            return runs == 0 ? 0 : totalTimeMs / runs;
+        }
+
+        double getAverageSteps() {
+            return runs == 0 ? 0 : (double) totalSteps / runs;
+        }
+    }
+
     public static void main(String[] args) throws IOException {
         String outputFile = "resultsDT.csv";
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(outputFile))) {
-            writer.println("type,size,operation,time_ms,steps");
+            writer.println("type,size,operation,avg_time_ms,avg_steps,runs");
 
             runExperiments("data/random", "random", writer);
             runExperiments("data/sorted", "sorted", writer);
@@ -26,14 +46,22 @@ public class TreapExperiment {
 
         Arrays.sort(files);
 
+        Map<Integer, Stats> insertStatsBySize = new TreeMap<>();
+        Map<Integer, Stats> searchStatsBySize = new TreeMap<>();
+        Map<Integer, Stats> deleteStatsBySize = new TreeMap<>();
+
         for (File file : files) {
             List<Integer> data = readData(file);
             int size = data.size();
 
-            measureInsert(type, size, data, writer);
-            measureSearch(type, size, data, writer);
-            measureDelete(type, size, data, writer);
+            addStats(insertStatsBySize, size, measureInsert(data));
+            addStats(searchStatsBySize, size, measureSearch(data));
+            addStats(deleteStatsBySize, size, measureDelete(data));
         }
+
+        writeAverages(writer, type, "insert", insertStatsBySize);
+        writeAverages(writer, type, "search", searchStatsBySize);
+        writeAverages(writer, type, "delete", deleteStatsBySize);
     }
 
     private static List<Integer> readData(File file) throws IOException {
@@ -50,64 +78,86 @@ public class TreapExperiment {
         return data;
     }
 
-    private static void measureInsert(String type, int size, List<Integer> data, PrintWriter writer) {
-        Treap treap = new Treap();
-        SimpleStopwatch stopwatch = new SimpleStopwatch();
-
-        treap.resetSteps();
-
-        stopwatch.start();
-
-        for (int value : data) {
-            treap.insert(value);
+    private static Stats measureInsert(List<Integer> data) {
+        if (data.isEmpty()) {
+            return new Stats();
         }
 
+        Treap treap = new Treap();
+
+        for (int i = 0; i < data.size() - 1; i++) {
+            treap.insert(data.get(i));
+        }
+
+        SimpleStopwatch stopwatch = new SimpleStopwatch();
+        treap.resetSteps();
+        stopwatch.start();
+        treap.insert(data.get(data.size() - 1));
         stopwatch.stop();
 
-        writer.println(type + "," + size + ",insert," +
-                stopwatch.getElapsedMilliseconds() + "," + treap.getSteps());
+        Stats stats = new Stats();
+        stats.add(stopwatch.getElapsedMilliseconds(), treap.getSteps());
+        return stats;
     }
 
-    private static void measureSearch(String type, int size, List<Integer> data, PrintWriter writer) {
+    private static Stats measureSearch(List<Integer> data) {
+        if (data.isEmpty()) {
+            return new Stats();
+        }
+
         Treap treap = new Treap();
 
         for (int value : data) {
             treap.insert(value);
         }
 
+        int keyToSearch = data.get(data.size() / 2);
         SimpleStopwatch stopwatch = new SimpleStopwatch();
         treap.resetSteps();
-
         stopwatch.start();
-
-        for (int value : data) {
-            treap.search(value);
-        }
-
+        treap.search(keyToSearch);
         stopwatch.stop();
 
-        writer.println(type + "," + size + ",search," +
-                stopwatch.getElapsedMilliseconds() + "," + treap.getSteps());
+        Stats stats = new Stats();
+        stats.add(stopwatch.getElapsedMilliseconds(), treap.getSteps());
+        return stats;
     }
 
-    private static void measureDelete(String type, int size, List<Integer> data, PrintWriter writer) {
+    private static Stats measureDelete(List<Integer> data) {
+        if (data.isEmpty()) {
+            return new Stats();
+        }
+
         Treap treap = new Treap();
 
         for (int value : data) {
             treap.insert(value);
         }
 
+        int keyToDelete = data.get(data.size() / 2);
         SimpleStopwatch stopwatch = new SimpleStopwatch();
         treap.resetSteps();
-
         stopwatch.start();
-
-        for (int value : data) {
-            treap.delete(value);
-        }
-
+        treap.delete(keyToDelete);
         stopwatch.stop();
 
-        writer.println(type + "," + size + ",delete," + stopwatch.getElapsedMilliseconds() + "," + treap.getSteps());
+        Stats stats = new Stats();
+        stats.add(stopwatch.getElapsedMilliseconds(), treap.getSteps());
+        return stats;
+    }
+
+    private static void addStats(Map<Integer, Stats> statsBySize, int size, Stats measurement) {
+        Stats stats = statsBySize.computeIfAbsent(size, ignored -> new Stats());
+        stats.add(measurement.getAverageTimeMs(), Math.round(measurement.getAverageSteps()));
+    }
+
+    private static void writeAverages(PrintWriter writer, String type, String operation, Map<Integer, Stats> statsBySize) {
+        for (Map.Entry<Integer, Stats> entry : statsBySize.entrySet()) {
+            int size = entry.getKey();
+            Stats stats = entry.getValue();
+
+            writer.println(type + "," + size + "," + operation + "," +
+                    stats.getAverageTimeMs() + "," + stats.getAverageSteps() + "," + stats.runs);
+        }
     }
 }
